@@ -1,4 +1,4 @@
-# pcoket-personal
+# pocket-personal
 
 `.env` file should contain:
 
