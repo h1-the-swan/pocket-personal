@@ -42,8 +42,10 @@ class PocketPersonal:
 
         self.data = dict()
         self.since = 0
+        self.history = []
 
         self._df = None
+        self._articles_by_tag = None
 
     def get_auth_url(self, new_token: bool = False) -> str:
         consumer_key = os.environ["POCKET_CONSUMER_KEY"]
@@ -88,6 +90,11 @@ class PocketPersonal:
             offset += count
             i += 1
 
+    def update(self):
+        self.load_articles()
+        self._df = None
+        self._articles_by_tag = None
+
     @property
     def df(self) -> pd.DataFrame:
         if self._df is None:
@@ -125,10 +132,23 @@ class PocketPersonal:
                     .astype(int)
                     .apply(lambda x: datetime.utcfromtimestamp(x) if x > 0 else pd.NaT)
                 )
+
+            int_cols = [
+                "favorite",
+                "status",
+            ]
+            for col in int_cols:
+                df[col] = df[col].astype(int)
             self._df = df
         return self._df
 
-    def articles_by_tag(self) -> Dict[str, List]:
+    @property
+    def articles_by_tag(self):
+        if self._articles_by_tag is None or len(self._articles_by_tag) < 2:
+            self._articles_by_tag = self.get_articles_by_tag()
+        return self._articles_by_tag
+
+    def get_articles_by_tag(self) -> Dict[str, List]:
         articles_by_tag = defaultdict(list)
         for article_id, article in self.data.items():
             if "tags" in article:
@@ -138,3 +158,22 @@ class PocketPersonal:
                 articles_by_tag["no_tags"].append(article_id)
 
         return articles_by_tag
+
+    def bulk_remove_tag(self, item_ids, tags):
+        if hasattr(item_ids, "tolist"):
+            item_ids = item_ids.tolist()
+        for item_id in item_ids:
+            self.pocket_instance.tags_remove(item_id, tags)
+        return self
+
+    def remove_tag_random_archived(self):
+        for tag, item_ids in self.articles_by_tag.items():
+            if tag.startswith("random"):
+                df_subset = self.df[self.df.item_id.isin(item_ids)]
+                df_subset = df_subset[df_subset.status > 0]
+                self.bulk_remove_tag(df_subset.item_id, tag)
+        return self
+
+    def commit(self):
+        self.history.extend(self.pocket_instance._bulk_query)
+        return self.pocket_instance.commit()
