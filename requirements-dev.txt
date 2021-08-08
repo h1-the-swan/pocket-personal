@@ -1,0 +1,11 @@
+# Local package
+-e .
+
+# External requirements
+black
+humanfriendly
+jupyter
+pandas
+pocket
+pylint
+python-dotenv
