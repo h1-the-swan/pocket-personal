@@ -3,6 +3,7 @@
 DESCRIPTION = """Core for pocket-personal"""
 
 import os
+from datetime import datetime
 
 import logging
 from typing import List, Optional, Dict
@@ -110,7 +111,21 @@ class PocketPersonal:
             ]
             for article in self.data.values():
                 d.append({c: article.get(c) for c in columns})
-            self._df = pd.DataFrame(d)
+
+            df = pd.DataFrame(d)
+            time_columns = [
+                "time_added",
+                "time_updated",
+                "time_read",
+                "time_favorited",
+            ]
+            for col in time_columns:
+                df[col] = (
+                    df[col]
+                    .astype(int)
+                    .apply(lambda x: datetime.utcfromtimestamp(x) if x > 0 else pd.NaT)
+                )
+            self._df = df
         return self._df
 
     def articles_by_tag(self) -> Dict[str, List]:
